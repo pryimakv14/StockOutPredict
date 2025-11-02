@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+        <tab id="sales" translate="label" sortOrder="400">
+            <label>Sales</label>
+        </tab>
+        <section id="stockout" translate="label" type="text" sortOrder="300" showInDefault="1" showInWebsite="1" showInStore="1">
+            <label>Stockout Prediction</label>
+            <tab>sales</tab>
+            <resource>Pryv_StockOutPredict::stockout_predict</resource>
+            <group id="accuracy_validation" translate="label" type="text" sortOrder="5" showInDefault="1" showInWebsite="1" showInStore="0">
+                <label>Accuracy Validation</label>
+                <field id="api_base_url" translate="label comment" type="text" sortOrder="5" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>API Base URL</label>
+                    <comment>Base URL for the API endpoints (default: http://host.docker.internal:5000)</comment>
+                </field>
+                <field id="sku_parameters" translate="label comment" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Params</label>
+                    <frontend_model>Pryv\StockOutPredict\Block\Adminhtml\Form\Field\SkuParameters</frontend_model>
+                    <backend_model>Magento\Config\Model\Config\Backend\Serialized\ArraySerialized</backend_model>
+                    <comment><![CDATA[Configure Prophet model parameters for each SKU. Test Period Days: Number of days to validate predictions, e.g., 60. CPS (Changepoint Prior Scale): Flexibility for trend changes, typical values: 0.05, 0.1, 0.5. SPS (Seasonality Prior Scale): Strength of seasonality components, typical values: 5.0, 10.0. HPS (Holidays Prior Scale): Impact of holidays on forecast, typical values: 10.0. SM (Seasonality Mode): Additive (constant seasonal variation) or Multiplicative (proportional seasonal variation). Lock: Yes to prevent parameter updates, No to allow tuning.]]></comment>
+                </field>
+            </group>
+        </section>
+    </system>
+</config>

@@ -1,0 +1,279 @@
+<?php
+/** @var $block \Magento\Framework\View\Element\Template */
+?>
+
+<div class="admin__fieldset">
+    <div style="text-align: center; margin-bottom: 20px;">
+        <div style="margin-bottom: 10px;">
+            <label for="skuInput" style="margin-right: 10px; font-weight: bold;">SKU:</label>
+            <input type="text" id="skuInput" name="sku" placeholder="Enter SKU" style="padding: 8px 12px; font-size: 14px; width: 200px; border: 1px solid #ccc; border-radius: 4px;" />
+        </div>
+        <button id="reloadChartBtn" type="button" class="action-primary" style="padding: 10px 20px; font-size: 14px;">
+            <span>Reload Chart Data</span>
+        </button>
+    </div>
+    <div class="chart-container" style="position: relative; width: 100%; max-width: 1400px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);">
+        <h2 style="text-align: center; margin-bottom: 20px;">Model Accuracy Comparison Over Time</h2>
+        <div id="chartPlaceholder" style="text-align: center; padding: 100px 20px; color: #999;">
+            <p>Enter a SKU and click "Reload Chart Data" to view the chart</p>
+        </div>
+        <div id="metricsContainer" style="display: none; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px;">
+            <h3 style="margin-top: 0; margin-bottom: 15px; font-size: 16px; font-weight: bold;">Accuracy Metrics</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div class="metric-item">
+                    <strong>MAE:</strong> <span id="metric-mae">-</span>
+                </div>
+                <div class="metric-item">
+                    <strong>RMSE:</strong> <span id="metric-rmse">-</span>
+                </div>
+                <div class="metric-item">
+                    <strong>MAPE:</strong> <span id="metric-mape">-</span>
+                </div>
+                <div class="metric-item">
+                    <strong>MBE:</strong> <span id="metric-mbe">-</span>
+                </div>
+                <div class="metric-item">
+                    <strong>R²:</strong> <span id="metric-r-squared">-</span>
+                </div>
+            </div>
+        </div>
+        <canvas id="myAccuracyChart" width="1360" height="600" style="display: none;"></canvas>
+    </div>
+</div>
+
+<input type="hidden" id="fetchDataUrl" value="<?php echo $block->escapeUrl($block->getUrl('stockout/accuracy/fetchData')); ?>" />
+
+<script type="text/javascript">
+(function() {
+    var chartData = null;
+
+    function drawChart(data) {
+        if (!data || !data.labels || !data.datasets || data.datasets.length === 0) {
+            return;
+        }
+
+        var canvas = document.getElementById('myAccuracyChart');
+        if (!canvas) {
+            setTimeout(function() { drawChart(data); }, 100);
+            return;
+        }
+
+        var ctx = canvas.getContext('2d');
+        var width = canvas.width;
+        var height = canvas.height;
+
+        ctx.clearRect(0, 0, width, height);
+
+        var labels = data.labels;
+        var numPoints = labels.length;
+        var datasets = data.datasets;
+
+        var padding = {top: 40, right: 40, bottom: 60, left: 60};
+        var chartWidth = width - padding.left - padding.right;
+        var chartHeight = height - padding.top - padding.bottom;
+        var minY = data.yAxisMin !== undefined ? data.yAxisMin : 0;
+        var maxY = data.yAxisMax !== undefined ? data.yAxisMax : 100;
+        var yRange = maxY - minY;
+        var yAxisFormat = data.yAxisFormat || '';
+        var xAxisLabel = data.xAxisLabel || 'X Axis';
+        var yAxisLabel = data.yAxisLabel || 'Y Axis';
+
+        // Calculate number of Y axis ticks (more ticks for better granularity)
+        var numYTicks = 12;
+
+        ctx.strokeStyle = '#ccc';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padding.left, padding.top);
+        ctx.lineTo(padding.left, padding.top + chartHeight);
+        ctx.lineTo(padding.left + chartWidth, padding.top + chartHeight);
+        ctx.stroke();
+
+        // Draw Y axis labels
+        ctx.fillStyle = '#666';
+        ctx.font = '12px Arial';
+        ctx.textAlign = 'right';
+        for (var i = 0; i <= numYTicks; i++) {
+            var y = minY + (yRange / numYTicks) * (numYTicks - i);
+            var yPos = padding.top + (chartHeight / numYTicks) * i;
+            var yLabel = y.toFixed(yRange > 10 ? 0 : 1);
+            if (yAxisFormat) {
+                yLabel = yLabel + yAxisFormat;
+            }
+            ctx.fillText(yLabel, padding.left - 10, yPos + 4);
+            ctx.strokeStyle = '#eee';
+            ctx.beginPath();
+            ctx.moveTo(padding.left, yPos);
+            ctx.lineTo(padding.left + chartWidth, yPos);
+            ctx.stroke();
+            ctx.strokeStyle = '#ccc';
+        }
+
+        // Calculate X step based on number of data points
+        ctx.textAlign = 'center';
+        var xStep = numPoints > 1 ? chartWidth / (numPoints - 1) : 0;
+
+        // Draw X axis labels (rotate if too many labels to avoid overlap)
+        var labelRotation = numPoints > 20 ? -45 : 0;
+        ctx.save();
+        for (var i = 0; i < numPoints; i++) {
+            var xPos = padding.left + (xStep * i);
+            ctx.save();
+            ctx.translate(xPos, padding.top + chartHeight + 20);
+            if (labelRotation !== 0) {
+                ctx.rotate(labelRotation * Math.PI / 180);
+                ctx.fillText(labels[i], 0, 0);
+            } else {
+                ctx.fillText(labels[i], 0, 10);
+            }
+            ctx.restore();
+        }
+        ctx.restore();
+
+        function drawLine(dataArray, color) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (var i = 0; i < dataArray.length; i++) {
+                var x = padding.left + (xStep * i);
+                var y = padding.top + chartHeight - ((dataArray[i] - minY) / yRange * chartHeight);
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            }
+            ctx.stroke();
+
+            ctx.fillStyle = color;
+            for (var i = 0; i < dataArray.length; i++) {
+                var x = padding.left + (xStep * i);
+                var y = padding.top + chartHeight - ((dataArray[i] - minY) / yRange * chartHeight);
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+
+        // Draw all datasets
+        for (var j = 0; j < datasets.length; j++) {
+            var dataset = datasets[j];
+            drawLine(dataset.data, dataset.color);
+        }
+
+        // Draw legend
+        var legendY = 20;
+        for (var j = 0; j < datasets.length; j++) {
+            var dataset = datasets[j];
+            ctx.fillStyle = dataset.color;
+            ctx.fillRect(width - 250, legendY, 15, 15);
+            ctx.fillStyle = '#666';
+            ctx.textAlign = 'left';
+            ctx.fillText(dataset.label, width - 230, legendY + 12);
+            legendY += 20;
+        }
+
+        // Draw axis titles
+        ctx.save();
+        ctx.translate(20, height / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillStyle = '#666';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(yAxisLabel, 0, 0);
+        ctx.restore();
+
+        ctx.fillStyle = '#666';
+        ctx.font = '14px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(xAxisLabel, width / 2, height - 10);
+    }
+
+    function loadChartData() {
+        var reloadBtn = document.getElementById('reloadChartBtn');
+        var skuInput = document.getElementById('skuInput');
+        var fetchDataUrl = document.getElementById('fetchDataUrl').value;
+
+        if (!reloadBtn || !fetchDataUrl) {
+            return;
+        }
+
+        var sku = skuInput ? skuInput.value.trim() : '';
+        if (!sku) {
+            alert('Please enter a SKU');
+            return;
+        }
+
+        reloadBtn.disabled = true;
+        reloadBtn.innerHTML = '<span>Loading...</span>';
+
+        var url = fetchDataUrl + (fetchDataUrl.indexOf('?') !== -1 ? '&' : '?') + 'sku=' + encodeURIComponent(sku);
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                reloadBtn.disabled = false;
+                reloadBtn.innerHTML = '<span>Reload Chart Data</span>';
+
+                if (xhr.status === 200) {
+                    try {
+                        var response = JSON.parse(xhr.responseText);
+                        if (response.success && response.data) {
+                            chartData = response.data;
+                            var placeholder = document.getElementById('chartPlaceholder');
+                            var canvas = document.getElementById('myAccuracyChart');
+                            var metricsContainer = document.getElementById('metricsContainer');
+                            
+                            if (placeholder) placeholder.style.display = 'none';
+                            if (canvas) canvas.style.display = 'block';
+                            drawChart(chartData);
+                            
+                            // Display metrics if available
+                            if (response.metrics && metricsContainer) {
+                                var metrics = response.metrics;
+                                document.getElementById('metric-mae').textContent = metrics.mae !== undefined ? metrics.mae.toFixed(2) : '-';
+                                document.getElementById('metric-rmse').textContent = metrics.rmse !== undefined ? metrics.rmse.toFixed(2) : '-';
+                                document.getElementById('metric-mape').textContent = metrics.mape !== undefined ? metrics.mape.toFixed(2) + '%' : '-';
+                                document.getElementById('metric-mbe').textContent = metrics.mbe !== undefined ? metrics.mbe.toFixed(2) : '-';
+                                document.getElementById('metric-r-squared').textContent = metrics.r_squared !== undefined ? metrics.r_squared.toFixed(4) : '-';
+                                metricsContainer.style.display = 'block';
+                            } else if (metricsContainer) {
+                                metricsContainer.style.display = 'none';
+                            }
+                        } else {
+                            alert('Error: ' + (response.message || 'Failed to load data'));
+                        }
+                    } catch (e) {
+                        alert('Error parsing response: ' + e.message);
+                    }
+                } else {
+                    alert('Error loading data. Status: ' + xhr.status + (xhr.responseText ? '\n' + xhr.responseText : ''));
+                }
+            }
+        };
+        xhr.onerror = function() {
+            reloadBtn.disabled = false;
+            reloadBtn.innerHTML = '<span>Reload Chart Data</span>';
+            alert('Network error: Could not connect to the server.');
+        };
+        xhr.send();
+    }
+
+    function init() {
+        var reloadBtn = document.getElementById('reloadChartBtn');
+        if (reloadBtn) {
+            reloadBtn.addEventListener('click', loadChartData);
+        }
+    }
+
+    if (window.addEventListener) {
+        window.addEventListener('load', init);
+    } else if (window.attachEvent) {
+        window.attachEvent('onload', init);
+    } else {
+        window.onload = init;
+    }
+})();
+</script>

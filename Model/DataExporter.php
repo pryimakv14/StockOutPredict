@@ -10,19 +10,6 @@ use Magento\Sales\Model\ResourceModel\Order\Item\CollectionFactory as OrderItemC
 
 class DataExporter
 {
-    const SKUS = [
-        'test1',
-        'test2',
-        'test3',
-        'test4',
-        'test5',
-        'test6',
-        'test7',
-        'test8',
-        'test9',
-        'test10',
-    ];
-
     /**
      * The CSV file will be saved to var/export/sales_history.csv
      */
@@ -34,12 +21,16 @@ class DataExporter
 
     private Filesystem $filesystem;
 
+    private ConfigService $configService;
+
     public function __construct(
         OrderItemCollectionFactory $itemCollectionFactory,
-        Filesystem $filesystem
+        Filesystem $filesystem,
+        ConfigService $configService
     ) {
         $this->itemCollectionFactory = $itemCollectionFactory;
         $this->filesystem = $filesystem;
+        $this->configService = $configService;
     }
 
     /**
@@ -58,10 +49,17 @@ class DataExporter
         $header = ['sku', 'qty_ordered', 'created_at'];
         $stream->writeCsv($header);
 
+        $skus = $this->configService->getAllSkus();
+
+        if (empty($skus)) {
+            $stream->unlock();
+            $stream->close();
+            return $directoryWrite->getAbsolutePath(self::EXPORT_FILE_NAME);
+        }
+
         $collection = $this->itemCollectionFactory->create();
         $collection->setOrder('order_id', 'ASC')
-            ->addFieldToFilter('sku', ['in' => self::SKUS])
-//            ->addFieldToFilter('created_at', ['gt' => '2024-10-25'])
+            ->addFieldToFilter('sku', ['in' => $skus])
             ->setPageSize(self::BATCH_SIZE);
 
         $currentPage = 1;
@@ -87,8 +85,6 @@ class DataExporter
             $currentPage++;
             $collection->clear();
         } while ($currentPage <= $lastPage);
-
-        // Release the file
         $stream->unlock();
         $stream->close();
 

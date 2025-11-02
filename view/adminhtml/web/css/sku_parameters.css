@@ -1,0 +1,9 @@
+#stockout_accuracy_validation_sku_parameters {
+    width: 1000px;
+}
+#stockout_accuracy_validation_sku_parameters .form-inline table.admin__control-table input[type="text"],
+#stockout_accuracy_validation_sku_parameters .form-inline table.admin__control-table select {
+    width: 100%;
+    min-width: 40px;
+    max-width: 200px;
+}

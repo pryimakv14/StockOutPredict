@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Backend:etc/menu.xsd">
+    <menu>
+        <add id="Pryv_StockOutPredict::stockout_predict"
+             title="Stockout Accuracy Validation"
+             module="Pryv_StockOutPredict"
+             sortOrder="100"
+             parent="Magento_Reports::report"
+             action="stockout/accuracy/validation"
+             resource="Pryv_StockOutPredict::stockout_predict"/>
+    </menu>
+</config>
