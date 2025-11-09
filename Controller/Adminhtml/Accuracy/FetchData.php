@@ -87,22 +87,16 @@ class FetchData extends Action
             $apiBaseUrl = $this->configService->getApiBaseUrl() . '/validate-period-accuracy/' . urlencode($sku);
 
             $postData = [];
-
             if ($skuParameters) {
-                if (isset($skuParameters['test_period_days']) && $skuParameters['test_period_days'] !== '') {
-                    $postData['test_period_days'] = $skuParameters['test_period_days'];
-                }
-                if (isset($skuParameters['changepoint_prior_scale']) && $skuParameters['changepoint_prior_scale'] !== '') {
-                    $postData['changepoint_prior_scale'] = $skuParameters['changepoint_prior_scale'];
-                }
-                if (isset($skuParameters['seasonality_prior_scale']) && $skuParameters['seasonality_prior_scale'] !== '') {
-                    $postData['seasonality_prior_scale'] = $skuParameters['seasonality_prior_scale'];
-                }
-                if (isset($skuParameters['holidays_prior_scale']) && $skuParameters['holidays_prior_scale'] !== '') {
-                    $postData['holidays_prior_scale'] = $skuParameters['holidays_prior_scale'];
-                }
-                if (isset($skuParameters['seasonality_mode']) && $skuParameters['seasonality_mode'] !== '') {
-                    $postData['seasonality_mode'] = $skuParameters['seasonality_mode'];
+                foreach (ConfigService::ALL_FIELDS as $field) {
+                    if (!empty($skuParameters[$field])) {
+                        if (in_array($field, ConfigService::BOOLEAN_FIELDS)) {
+                            $postData[$field] = $skuParameters[$field] === '1' ||
+                                $skuParameters[$field] === 1 || $skuParameters[$field] === true;
+                        } else {
+                            $postData[$field] = $skuParameters[$field];
+                        }
+                    }
                 }
             }
 
@@ -153,13 +147,12 @@ class FetchData extends Action
                 'labels' => $labels,
                 'xAxisLabel' => 'Day',
                 'yAxisLabel' => 'Quantity',
-                'yAxisMin' => max(0, $minY), // Don't allow negative values
+                'yAxisMin' => max(0, $minY),
                 'yAxisMax' => $maxY,
                 'yAxisFormat' => '',
                 'datasets' => []
             ];
 
-            // Add predicted dataset
             if (!empty($predicted)) {
                 $chartData['datasets'][] = [
                     'label' => 'Predicted',
@@ -168,7 +161,6 @@ class FetchData extends Action
                 ];
             }
 
-            // Add actual dataset
             if (!empty($actual)) {
                 $chartData['datasets'][] = [
                     'label' => 'Actual',
@@ -182,7 +174,6 @@ class FetchData extends Action
                 'data' => $chartData
             ];
 
-            // Add metrics if available
             if ($metrics !== null) {
                 $responseData['metrics'] = $metrics;
             }

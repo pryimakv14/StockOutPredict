@@ -6,7 +6,6 @@ namespace Pryv\StockOutPredict\Block\Adminhtml\Form\Field;
 use Magento\Config\Block\System\Config\Form\Field\FieldArray\AbstractFieldArray;
 use Magento\Framework\DataObject;
 use Magento\Framework\Exception\LocalizedException;
-use Magento\Framework\View\Element\BlockInterface;
 
 class SkuParameters extends AbstractFieldArray
 {
@@ -19,6 +18,11 @@ class SkuParameters extends AbstractFieldArray
      * @var LockParams
      */
     private $lockParamsRenderer;
+
+    /**
+     * @var YesNoOptions
+     */
+    private $yesNoOptionsRenderer;
 
     /**
      * Prepare rendering the new field by adding all the needed columns
@@ -56,6 +60,21 @@ class SkuParameters extends AbstractFieldArray
             'renderer' => $this->getSeasonalityModeRenderer()
         ]);
 
+        $this->addColumn('yearly_seasonality', [
+            'label' => __('Yearly Seasonality'),
+            'renderer' => $this->getYesNoOptionsRenderer()
+        ]);
+
+        $this->addColumn('weekly_seasonality', [
+            'label' => __('Weekly Seasonality'),
+            'renderer' => $this->getYesNoOptionsRenderer()
+        ]);
+
+        $this->addColumn('daily_seasonality', [
+            'label' => __('Daily Seasonality'),
+            'renderer' => $this->getYesNoOptionsRenderer()
+        ]);
+
         $this->addColumn('lock_params', [
             'label' => __('Lock'),
             'renderer' => $this->getLockParamsRenderer()
@@ -83,6 +102,21 @@ class SkuParameters extends AbstractFieldArray
         $lockParams = $row->getLockParams();
         if ($lockParams !== null) {
             $options['option_' . $this->getLockParamsRenderer()->calcOptionHash($lockParams)] = 'selected="selected"';
+        }
+
+        $yearlySeasonality = $row->getYearlySeasonality();
+        if ($yearlySeasonality !== null) {
+            $options['option_' . $this->getYesNoOptionsRenderer()->calcOptionHash($yearlySeasonality)] = 'selected="selected"';
+        }
+
+        $weeklySeasonality = $row->getWeeklySeasonality();
+        if ($weeklySeasonality !== null) {
+            $options['option_' . $this->getYesNoOptionsRenderer()->calcOptionHash($weeklySeasonality)] = 'selected="selected"';
+        }
+
+        $dailySeasonality = $row->getDailySeasonality();
+        if ($dailySeasonality !== null) {
+            $options['option_' . $this->getYesNoOptionsRenderer()->calcOptionHash($dailySeasonality)] = 'selected="selected"';
         }
 
         $row->setData('option_extra_attrs', $options);
@@ -118,6 +152,22 @@ class SkuParameters extends AbstractFieldArray
             );
         }
         return $this->lockParamsRenderer;
+    }
+
+    /**
+     * @return YesNoOptions
+     * @throws LocalizedException
+     */
+    private function getYesNoOptionsRenderer(): YesNoOptions
+    {
+        if (!$this->yesNoOptionsRenderer) {
+            $this->yesNoOptionsRenderer = $this->getLayout()->createBlock(
+                YesNoOptions::class,
+                '',
+                ['data' => ['is_render_to_js_template' => true]]
+            );
+        }
+        return $this->yesNoOptionsRenderer;
     }
 }
 
