@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace Pryv\StockOutPredict\Block\Adminhtml\Form\Field;
 
 use Magento\Framework\View\Element\Html\Select;
-use Magento\Framework\View\Element\Context;
 
 class LockParams extends Select
 {

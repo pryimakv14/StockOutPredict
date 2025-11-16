@@ -6,6 +6,7 @@ namespace Pryv\StockOutPredict\Block\Adminhtml\Form\Field;
 use Magento\Config\Block\System\Config\Form\Field\FieldArray\AbstractFieldArray;
 use Magento\Framework\DataObject;
 use Magento\Framework\Exception\LocalizedException;
+use Pryv\StockOutPredict\Model\ConfigService;
 
 class SkuParameters extends AbstractFieldArray
 {
@@ -35,43 +36,38 @@ class SkuParameters extends AbstractFieldArray
             'class' => 'required-entry'
         ]);
 
-        $this->addColumn('test_period_days', [
-            'label' => __('Test Period Days'),
+        $this->addColumn(ConfigService::FIELD_TEST_ALERT_THRESHOLD, [
+            'label' => __('Alert Threshold'),
             'class' => 'validate-number validate-zero-or-greater'
         ]);
 
-        $this->addColumn('changepoint_prior_scale', [
+        $this->addColumn(ConfigService::FIELD_CHANGEPOINT_PRIOR_SCALE, [
             'label' => __('CPS'),
             'class' => 'validate-number'
         ]);
 
-        $this->addColumn('seasonality_prior_scale', [
+        $this->addColumn(ConfigService::FIELD_SEASONALITY_PRIOR_SCALE, [
             'label' => __('SPS'),
             'class' => 'validate-number'
         ]);
 
-        $this->addColumn('holidays_prior_scale', [
+        $this->addColumn(ConfigService::FIELD_HOLIDAYS_PRIOR_SCALE, [
             'label' => __('HPS'),
             'class' => 'validate-number'
         ]);
 
-        $this->addColumn('seasonality_mode', [
+        $this->addColumn(ConfigService::FIELD_SEASONALITY_MODE, [
             'label' => __('SM'),
             'renderer' => $this->getSeasonalityModeRenderer()
         ]);
 
-        $this->addColumn('yearly_seasonality', [
+        $this->addColumn(ConfigService::FIELD_YEARLY_SEASONALITY, [
             'label' => __('Yearly Seasonality'),
             'renderer' => $this->getYesNoOptionsRenderer()
         ]);
 
-        $this->addColumn('weekly_seasonality', [
+        $this->addColumn(ConfigService::FIELD_WEEKLY_SEASONALITY, [
             'label' => __('Weekly Seasonality'),
-            'renderer' => $this->getYesNoOptionsRenderer()
-        ]);
-
-        $this->addColumn('daily_seasonality', [
-            'label' => __('Daily Seasonality'),
             'renderer' => $this->getYesNoOptionsRenderer()
         ]);
 
@@ -112,11 +108,6 @@ class SkuParameters extends AbstractFieldArray
         $weeklySeasonality = $row->getWeeklySeasonality();
         if ($weeklySeasonality !== null) {
             $options['option_' . $this->getYesNoOptionsRenderer()->calcOptionHash($weeklySeasonality)] = 'selected="selected"';
-        }
-
-        $dailySeasonality = $row->getDailySeasonality();
-        if ($dailySeasonality !== null) {
-            $options['option_' . $this->getYesNoOptionsRenderer()->calcOptionHash($dailySeasonality)] = 'selected="selected"';
         }
 
         $row->setData('option_extra_attrs', $options);

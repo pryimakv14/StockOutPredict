@@ -11,7 +11,9 @@ use Magento\Store\Model\StoreManagerInterface;
 
 class ConfigService
 {
-    public const string FIELD_TEST_PERIOD_DAYS = 'test_period_days';
+    public const int FIELD_TEST_PERIOD_DAYS = 60;
+
+    public const string FIELD_TEST_ALERT_THRESHOLD = 'alert_threshold';
     public const string FIELD_CHANGEPOINT_PRIOR_SCALE = 'changepoint_prior_scale';
     public const string FIELD_SEASONALITY_PRIOR_SCALE = 'seasonality_prior_scale';
     public const string FIELD_HOLIDAYS_PRIOR_SCALE = 'holidays_prior_scale';
@@ -26,8 +28,8 @@ class ConfigService
         ConfigService::FIELD_YEARLY_SEASONALITY
     ];
 
-    public const array ALL_FIELDS = [
-        self::FIELD_TEST_PERIOD_DAYS,
+    public const array ALL_PARAMS_FIELDS = [
+        self::FIELD_TEST_ALERT_THRESHOLD,
         self::FIELD_CHANGEPOINT_PRIOR_SCALE,
         self::FIELD_SEASONALITY_PRIOR_SCALE,
         self::FIELD_HOLIDAYS_PRIOR_SCALE,

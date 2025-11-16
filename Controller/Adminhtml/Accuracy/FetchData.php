@@ -88,7 +88,7 @@ class FetchData extends Action
 
             $postData = [];
             if ($skuParameters) {
-                foreach (ConfigService::ALL_FIELDS as $field) {
+                foreach (ConfigService::ALL_PARAMS_FIELDS as $field) {
                     if (!empty($skuParameters[$field])) {
                         if (in_array($field, ConfigService::BOOLEAN_FIELDS)) {
                             $postData[$field] = $skuParameters[$field] === '1' ||

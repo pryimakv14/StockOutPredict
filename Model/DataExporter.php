@@ -60,6 +60,7 @@ class DataExporter
         $collection = $this->itemCollectionFactory->create();
         $collection->setOrder('order_id', 'ASC')
             ->addFieldToFilter('sku', ['in' => $skus])
+            ->addFieldToFilter('created_at', ['lt' => date('Y-m-d')])
             ->setPageSize(self::BATCH_SIZE);
 
         $currentPage = 1;

@@ -110,10 +110,7 @@ class ExportData extends Command
 
         try {
             $uploadUrl = $this->configService->getUploadApiUrl();
-
-            // Use PHP's cURL directly for multipart form upload
             $curl = curl_init();
-
             $fileHandle = fopen($filePath, 'r');
             if (!$fileHandle) {
                 return [
@@ -144,7 +141,7 @@ class ExportData extends Command
                     "Content-Type: multipart/form-data; boundary={$boundary}",
                     "Content-Length: " . strlen($body)
                 ],
-                CURLOPT_TIMEOUT => 300, // 5 minutes timeout
+                CURLOPT_TIMEOUT => 600, // 10 minutes timeout
             ]);
 
             $response = curl_exec($curl);
@@ -215,31 +212,17 @@ class ExportData extends Command
             $errors = [];
 
             foreach ($allSkuParameters as $skuRow) {
-                if (!isset($skuRow['sku']) || empty($skuRow['sku'])) {
+                if (empty($skuRow['sku'])) {
                     continue;
                 }
 
                 $sku = (string)$skuRow['sku'];
                 $output->writeln("<info>Training model for SKU: {$sku}</info>");
-
-                // Check if params should be passed
                 $shouldPassParams = false;
                 $requestBody = [];
-
-                // Check if lock is true and params are present
                 $lockParams = isset($skuRow['lock_params']) && $skuRow['lock_params'] === '1';
-
                 if ($lockParams) {
-                    // Build request body with available parameters
-                    // Exclude test_period_days as it's not a training parameter
-                    $trainingFields = array_filter(
-                        ConfigService::ALL_FIELDS,
-                        function ($field) {
-                            return $field !== ConfigService::FIELD_TEST_PERIOD_DAYS;
-                        }
-                    );
-
-                    foreach ($trainingFields as $key) {
+                    foreach (ConfigService::ALL_PARAMS_FIELDS as $key) {
                         if (!empty($skuRow[$key])) {
                             $value = $skuRow[$key];
                             if (in_array($key, ConfigService::BOOLEAN_FIELDS)) {
@@ -254,14 +237,11 @@ class ExportData extends Command
                     }
                 }
 
-                // Call train endpoint
-                $trainResult = ['success' => true]; //$this->trainModel($sku, $shouldPassParams ? $requestBody : null);
-
+                $trainResult = $this->trainModel($sku, $shouldPassParams ? $requestBody : null);
                 if ($trainResult['success']) {
                     $successCount++;
                     $output->writeln("<info>Model trained successfully for SKU: {$sku}</info>");
 
-                    // If no body was passed, update config with hyperparams from response
                     if (!$shouldPassParams && isset($trainResult['response'])) {
                         $this->updateConfigFromResponse($sku, $trainResult['response']);
                     }
