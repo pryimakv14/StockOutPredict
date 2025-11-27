@@ -8,11 +8,14 @@ use Magento\AdminNotification\Model\ResourceModel\Inbox\CollectionFactory as Inb
 use Magento\Framework\HTTP\Client\CurlFactory;
 use Magento\Framework\Notification\MessageInterface;
 use Magento\Framework\Serialize\Serializer\Json;
+use Magento\Framework\App\ResourceConnection;
 use Psr\Log\LoggerInterface;
 
 class PredictService
 {
     private const NOTIFICATION_TITLE_PATTERN = 'Low Stock Warning: %1';
+
+    private const FLAG_CODE_PREFIX = 'stockout_predict_';
 
     /**
      * @param ConfigService $configService
@@ -20,6 +23,7 @@ class PredictService
      * @param Json $json
      * @param InboxFactory $inboxFactory
      * @param InboxCollectionFactory $inboxCollectionFactory
+     * @param ResourceConnection $resourceConnection
      * @param LoggerInterface $logger
      */
     public function __construct(
@@ -28,6 +32,7 @@ class PredictService
         private readonly Json $json,
         private readonly InboxFactory $inboxFactory,
         private readonly InboxCollectionFactory $inboxCollectionFactory,
+        private readonly ResourceConnection $resourceConnection,
         private readonly LoggerInterface $logger
     ) {
     }
@@ -142,6 +147,79 @@ class PredictService
             ]);
 
             return false;
+        }
+    }
+
+    /**
+     * Check if prediction was made within the cooldown period
+     *
+     * @param string $sku
+     * @return bool
+     */
+    public function wasPredictionMadeRecently(string $sku): bool
+    {
+        $cooldownHours = $this->configService->getPredictionCooldownHours();
+        if (!$cooldownHours) {
+            return false;
+        }
+
+        try {
+            $connection = $this->resourceConnection->getConnection();
+            $flagTable = $connection->getTableName('flag');
+            $flagCode = self::FLAG_CODE_PREFIX . $sku;
+
+            $cooldownHours = $this->configService->getPredictionCooldownHours();
+            $cutoffTime = date('Y-m-d H:i:s', strtotime("-{$cooldownHours} hours"));
+
+            $select = $connection->select()
+                ->from($flagTable, ['last_update'])
+                ->where('flag_code = ?', $flagCode)
+                ->where('last_update >= ?', $cutoffTime)
+                ->limit(1);
+
+            $result = $connection->fetchOne($select);
+
+            return (bool)$result;
+        } catch (\Exception $e) {
+            $this->logger->error('Error checking prediction flag', [
+                'sku' => $sku,
+                'exception' => $e->getMessage()
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
+     * Set flag indicating prediction was made
+     *
+     * @param string $sku
+     * @return void
+     */
+    public function setPredictionFlag(string $sku): void
+    {
+        try {
+            $connection = $this->resourceConnection->getConnection();
+            $flagTable = $connection->getTableName('flag');
+            $flagCode = self::FLAG_CODE_PREFIX . $sku;
+
+            $data = [
+                'flag_code' => $flagCode,
+                'state' => 1,
+                'flag_data' => $this->json->serialize(['sku' => $sku, 'prediction_time' => date('Y-m-d H:i:s')]),
+                'last_update' => date('Y-m-d H:i:s')
+            ];
+
+            $connection->insertOnDuplicate(
+                $flagTable,
+                $data,
+                ['state', 'flag_data', 'last_update']
+            );
+        } catch (\Exception $e) {
+            $this->logger->error('Error setting prediction flag', [
+                'sku' => $sku,
+                'exception' => $e->getMessage()
+            ]);
         }
     }
 }

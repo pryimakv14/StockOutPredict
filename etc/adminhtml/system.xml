@@ -12,13 +12,19 @@
                 <label>Accuracy Validation</label>
                 <field id="api_base_url" translate="label comment" type="text" sortOrder="5" showInDefault="1" showInWebsite="1" showInStore="0">
                     <label>API Base URL</label>
-                    <comment>Base URL for the API endpoints (default: http://host.docker.internal:5000)</comment>
+                    <comment>Base URL for the API endpoints.</comment>
                 </field>
-                <field id="sku_parameters" translate="label comment" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="0">
+                <field id="prediction_cooldown_hours" translate="label comment" type="text" sortOrder="10" showInDefault="1" showInWebsite="1" showInStore="0">
+                    <label>Prediction Cooldown Period (Hours)</label>
+                    <comment>Number of hours to wait before making another prediction for the same SKU. Default: 3 hours. Can be empty or zero for disabling.</comment>
+                    <validate>validate-number validate-greater-than-zero</validate>
+                    <frontend_class>validate-number</frontend_class>
+                </field>
+                <field id="sku_parameters" translate="label comment" sortOrder="15" showInDefault="1" showInWebsite="1" showInStore="0">
                     <label>Params</label>
                     <frontend_model>Pryv\StockOutPredict\Block\Adminhtml\Form\Field\SkuParameters</frontend_model>
                     <backend_model>Magento\Config\Model\Config\Backend\Serialized\ArraySerialized</backend_model>
-                    <comment><![CDATA[Configure Prophet model parameters for each SKU. Test Period Days: Number of days to validate predictions, e.g., 60. CPS (Changepoint Prior Scale): Flexibility for trend changes, typical values: 0.05, 0.1, 0.5. SPS (Seasonality Prior Scale): Strength of seasonality components, typical values: 5.0, 10.0. HPS (Holidays Prior Scale): Impact of holidays on forecast, typical values: 10.0. SM (Seasonality Mode): Additive (constant seasonal variation) or Multiplicative (proportional seasonal variation). Lock: Yes to prevent parameter updates, No to allow tuning.]]></comment>
+                    <comment><![CDATA[Configure Prophet model parameters for each SKU. Test Period Days: Number of days to validate predictions, e.g., 60. CPS (Changepoint Prior Scale): Flexibility for trend changes, typical values: 0.05, 0.1, 0.5. SPS (Seasonality Prior Scale): Strength of seasonality components, typical values: 5.0, 10.0. HPS (Holidays Prior Scale): Impact of holidays on forecast, typical values: 10.0. SM (Seasonality Mode): Additive (constant seasonal variation) or Multiplicative (proportional seasonal variation). Lock: None = params not sent, Params = params sent in body but not updated during training, Model = training skipped entirely.]]></comment>
                 </field>
             </group>
         </section>

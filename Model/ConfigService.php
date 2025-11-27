@@ -5,14 +5,13 @@ namespace Pryv\StockOutPredict\Model;
 
 use Magento\Framework\App\Config\ScopeConfigInterface;
 use Magento\Framework\App\Config\Storage\WriterInterface;
+use Magento\Framework\App\Config\ReinitableConfigInterface;
 use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Store\Model\ScopeInterface;
 use Magento\Store\Model\StoreManagerInterface;
 
 class ConfigService
 {
-    public const int FIELD_TEST_PERIOD_DAYS = 60;
-
     public const string FIELD_TEST_ALERT_THRESHOLD = 'alert_threshold';
     public const string FIELD_CHANGEPOINT_PRIOR_SCALE = 'changepoint_prior_scale';
     public const string FIELD_SEASONALITY_PRIOR_SCALE = 'seasonality_prior_scale';
@@ -60,6 +59,11 @@ class ConfigService
     private WriterInterface $configWriter;
 
     /**
+     * @var ReinitableConfigInterface
+     */
+    private ReinitableConfigInterface $reinitableConfig;
+
+    /**
      * API base URL configuration path
      */
     private const CONFIG_PATH_API_BASE_URL = 'stockout/accuracy_validation/api_base_url';
@@ -70,21 +74,29 @@ class ConfigService
     private const CONFIG_PATH_SKU_PARAMETERS = 'stockout/accuracy_validation/sku_parameters';
 
     /**
+     * Prediction cooldown period configuration path
+     */
+    private const CONFIG_PATH_PREDICTION_COOLDOWN_HOURS = 'stockout/accuracy_validation/prediction_cooldown_hours';
+
+    /**
      * @param ScopeConfigInterface $scopeConfig
      * @param Json $json
      * @param StoreManagerInterface $storeManager
      * @param WriterInterface $configWriter
+     * @param ReinitableConfigInterface $reinitableConfig
      */
     public function __construct(
         ScopeConfigInterface $scopeConfig,
         Json $json,
         StoreManagerInterface $storeManager,
-        WriterInterface $configWriter
+        WriterInterface $configWriter,
+        ReinitableConfigInterface $reinitableConfig
     ) {
         $this->scopeConfig = $scopeConfig;
         $this->json = $json;
         $this->storeManager = $storeManager;
         $this->configWriter = $configWriter;
+        $this->reinitableConfig = $reinitableConfig;
     }
 
     /**
@@ -157,12 +169,10 @@ class ConfigService
      */
     public function getApiBaseUrl(): string
     {
-        $url = $this->scopeConfig->getValue(
+        return $this->scopeConfig->getValue(
             self::CONFIG_PATH_API_BASE_URL,
             ScopeInterface::SCOPE_STORE
         );
-
-        return $url ?: 'http://host.docker.internal:5000';
     }
 
     /**
@@ -187,12 +197,17 @@ class ConfigService
     }
 
     /**
-     * Get all SKU parameters from configuration
+     * Get all SKU parameters from configuration (reads fresh from database)
      *
+     * @param bool $fresh If true, reinitialize config cache before reading
      * @return array Array of SKU parameter rows
      */
-    public function getAllSkuParameters(): array
+    public function getAllSkuParameters(bool $fresh = false): array
     {
+        if ($fresh) {
+            $this->reinitableConfig->reinit();
+        }
+
         $configValue = $this->scopeConfig->getValue(
             self::CONFIG_PATH_SKU_PARAMETERS,
             ScopeInterface::SCOPE_STORE
@@ -220,29 +235,24 @@ class ConfigService
     public function updateSkuParameters(string $sku, array $parameters): bool
     {
         try {
-            $allParameters = $this->getAllSkuParameters();
+            $allParameters = $this->getAllSkuParameters(true);
             $updated = false;
 
-            // Find and update the row for this SKU
             foreach ($allParameters as $index => $row) {
                 if (isset($row['sku']) && $row['sku'] === $sku) {
-                    // Merge new parameters with existing row data
                     $allParameters[$index] = array_merge($row, $parameters);
                     $updated = true;
                     break;
                 }
             }
 
-            // If SKU not found, add a new row
             if (!$updated) {
                 $allParameters[] = array_merge(['sku' => $sku], $parameters);
             }
 
-            // Save the updated configuration
             $store = $this->storeManager->getStore();
             $serializedValue = $this->json->serialize($allParameters);
 
-            // Use config writer to save the value
             $this->configWriter->save(
                 self::CONFIG_PATH_SKU_PARAMETERS,
                 $serializedValue,
@@ -250,10 +260,66 @@ class ConfigService
                 $store->getId()
             );
 
+            // Reinitialize config cache after save to ensure next read gets fresh data
+            $this->reinitableConfig->reinit();
+
             return true;
         } catch (\Exception $e) {
             return false;
         }
+    }
+
+    /**
+     * Batch update SKU parameters for multiple SKUs
+     *
+     * @param array $updates Array of [sku => parameters] to update
+     * @return bool
+     */
+    public function batchUpdateSkuParameters(array $updates): bool
+    {
+        try {
+            $allParameters = $this->getAllSkuParameters(true);
+            $skuIndexMap = [];
+
+            foreach ($allParameters as $index => $row) {
+                if (isset($row['sku'])) {
+                    $skuIndexMap[$row['sku']] = $index;
+                }
+            }
+
+            foreach ($updates as $sku => $parameters) {
+                if (isset($skuIndexMap[$sku])) {
+                    $index = $skuIndexMap[$sku];
+                    $allParameters[$index] = array_merge($allParameters[$index], $parameters);
+                } else {
+                    $allParameters[] = array_merge(['sku' => $sku], $parameters);
+                }
+            }
+
+            $store = $this->storeManager->getStore();
+            $serializedValue = $this->json->serialize($allParameters);
+            $this->configWriter->save(self::CONFIG_PATH_SKU_PARAMETERS, $serializedValue);
+            $this->reinitableConfig->reinit();
+
+            return true;
+        } catch (\Exception $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Get prediction cooldown period in hours
+     *
+     * @return int
+     */
+    public function getPredictionCooldownHours(): int
+    {
+        $hours = $this->scopeConfig->getValue(
+            self::CONFIG_PATH_PREDICTION_COOLDOWN_HOURS,
+            ScopeInterface::SCOPE_STORE
+        );
+
+        return $hours ? (int)$hours : 3;
     }
 }
 

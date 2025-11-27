@@ -7,6 +7,9 @@ use Magento\Framework\View\Element\Html\Select;
 
 class LockParams extends Select
 {
+    const OPTION_LOCK_PARAMS = 'params';
+    const OPTION_LOCK_MODEL = 'model';
+
     /**
      * Set input name
      *
@@ -50,8 +53,9 @@ class LockParams extends Select
     private function getSourceOptions(): array
     {
         return [
-            ['value' => '0', 'label' => __('No')],
-            ['value' => '1', 'label' => __('Yes')],
+            ['value' => '', 'label' => __('None')],
+            ['value' => self::OPTION_LOCK_PARAMS, 'label' => __('Params')],
+            ['value' => self::OPTION_LOCK_MODEL, 'label' => __('Model')],
         ];
     }
 }

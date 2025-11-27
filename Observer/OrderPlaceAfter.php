@@ -50,7 +50,8 @@ class OrderPlaceAfter implements ObserverInterface
                 if (empty($params) || !is_numeric($params[ConfigService::FIELD_TEST_ALERT_THRESHOLD] ?? '')) {
                     continue;
                 }
-                if ($this->predictService->hasExistingNotification($sku)) {
+                if ($this->predictService->hasExistingNotification($sku) ||
+                    $this->predictService->wasPredictionMadeRecently($sku)) {
                     continue;
                 }
                 $this->handlePrediction($item, (int)$params[ConfigService::FIELD_TEST_ALERT_THRESHOLD]);
@@ -74,6 +75,7 @@ class OrderPlaceAfter implements ObserverInterface
         $prediction = $this->predictService->getPrediction($item->getSku(), (int)$stockQty);
         if ($prediction && isset($prediction['days_of_stock_remaining'])) {
             $daysRemaining = (int)$prediction['days_of_stock_remaining'];
+            $this->predictService->setPredictionFlag($item->getSku());
             if ($daysRemaining < $alertThreshold) {
                 $this->predictService->createAdminNotification(
                     $item->getSku(),

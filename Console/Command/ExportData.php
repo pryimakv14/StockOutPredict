@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Pryv\StockOutPredict\Console\Command;
 
+use Pryv\StockOutPredict\Block\Adminhtml\Form\Field\LockParams;
 use Pryv\StockOutPredict\Model\ConfigService;
 use Pryv\StockOutPredict\Model\DataExporter;
 use Psr\Log\LoggerInterface;
@@ -210,18 +211,25 @@ class ExportData extends Command
             $successCount = 0;
             $failureCount = 0;
             $errors = [];
-
+            $pendingUpdates = [];
             foreach ($allSkuParameters as $skuRow) {
                 if (empty($skuRow['sku'])) {
                     continue;
                 }
 
                 $sku = (string)$skuRow['sku'];
+                $lockParams = $skuRow['lock_params'] ?? 'none';
+
+                if ($lockParams === LockParams::OPTION_LOCK_MODEL) {
+                    $output->writeln("<comment>Skipping training for SKU: {$sku} (model locked)</comment>");
+                    continue;
+                }
+
                 $output->writeln("<info>Training model for SKU: {$sku}</info>");
                 $shouldPassParams = false;
                 $requestBody = [];
-                $lockParams = isset($skuRow['lock_params']) && $skuRow['lock_params'] === '1';
-                if ($lockParams) {
+
+                if ($lockParams === LockParams::OPTION_LOCK_PARAMS) {
                     foreach (ConfigService::ALL_PARAMS_FIELDS as $key) {
                         if (!empty($skuRow[$key])) {
                             $value = $skuRow[$key];
@@ -242,8 +250,15 @@ class ExportData extends Command
                     $successCount++;
                     $output->writeln("<info>Model trained successfully for SKU: {$sku}</info>");
 
-                    if (!$shouldPassParams && isset($trainResult['response'])) {
-                        $this->updateConfigFromResponse($sku, $trainResult['response']);
+                    if (empty($lockParams) && isset($trainResult['response'])) {
+                        // Extract parameters but don't save yet - accumulate them
+                        $params = $this->extractParametersFromResponse(
+                            $trainResult['response']['training_info']['best_parameters'] ??
+                            $trainResult['response']['training_info']['parameters_used'] ?? []
+                        );
+                        if (!empty($params)) {
+                            $pendingUpdates[$sku] = $params;
+                        }
                     }
                 } else {
                     $failureCount++;
@@ -255,6 +270,12 @@ class ExportData extends Command
                         'error' => $trainResult['message']
                     ]);
                 }
+            }
+
+            // Save all updates in a single batch operation
+            if (!empty($pendingUpdates)) {
+                $this->configService->batchUpdateSkuParameters($pendingUpdates);
+                $output->writeln("<info>Updated parameters for " . count($pendingUpdates) . " SKUs</info>");
             }
 
             $message = "Training completed: {$successCount} successful, {$failureCount} failed";
@@ -432,7 +453,6 @@ class ExportData extends Command
 
             $value = $paramsSource[$apiField];
 
-            // Convert boolean fields to '1' or '0'
             if (in_array($configField, ConfigService::BOOLEAN_FIELDS, true)) {
                 $parameters[$configField] = ($value === true || $value === 1 || $value === '1') ? '1' : '0';
             } else {
